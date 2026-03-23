@@ -9,7 +9,11 @@ export interface ChatMessage {
   timestamp: Date;
 }
 
-const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
+const CLAUDE_API_URLconst CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
+const CORS_PROXY = 'https://corsproxy.io/?';
+const API_URL = typeof window !== 'undefined' 
+  ? CORS_PROXY + encodeURIComponent(CLAUDE_API_URL)
+  : CLAUDE_API_URL;
 const MODEL = 'claude-sonnet-4-20250514';
 
 function buildLEEDContext(analysis: AnalysisResult): string {
