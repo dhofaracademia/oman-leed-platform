@@ -25,24 +25,22 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: app/package-lock.json
+          node-version: '22'
 
       - name: Install dependencies
         run: npm ci
-        working-directory: ./app
+        working-directory: ./leed_freemium_report/leed_app/app
 
       - name: Build
         run: npm run build
-        working-directory: ./app
+        working-directory: ./leed_freemium_report/leed_app/app
         env:
           VITE_ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./app/dist
+          path: ./leed_freemium_report/leed_app/app/dist
 
   deploy:
     environment:
