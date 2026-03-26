@@ -5,7 +5,7 @@ export interface Location {
   address?: string;
 }
 
-// NASA POWER API Data Types
+// NASA POWER / PVGIS API Data Types
 export interface SolarData {
   ghi: number; // Global Horizontal Irradiance (kWh/m²/day)
   dni: number; // Direct Normal Irradiance (kWh/m²/day)
@@ -17,6 +17,7 @@ export interface SolarData {
   pvProductionPotential: number;
   dustImpact: 'low' | 'moderate' | 'high';
   dustImpactValue: number;
+  dataSource?: string;
 }
 
 export interface WindData {
@@ -38,7 +39,7 @@ export interface ClimateData {
   sunshineHours: number;
 }
 
-// ISRIC SoilGrids API Data Types
+// OpenLandMap / SoilGrids API Data Types
 export interface SoilData {
   type: string;
   texture: string;
@@ -51,6 +52,7 @@ export interface SoilData {
   siltContent: number; // %
   contaminationRisk: 'low' | 'moderate' | 'high';
   depth: number;
+  dataSource?: string;
 }
 
 // LEED Assessment Types - Current Land Status Only
@@ -129,16 +131,16 @@ export interface StatItem {
 export interface NASAPowerResponse {
   properties: {
     parameter: {
-      ALLSKY_SFC_SW_DWN?: number[];
-      ALLSKY_SFC_SW_DNI?: number[];
-      ALLSKY_SFC_SW_DIFF?: number[];
-      WS10M?: number[];
-      WS10M_MAX?: number[];
-      RH2M?: number[];
-      T2M?: number[];
-      T2M_MAX?: number[];
-      T2M_MIN?: number[];
-      PRECTOTCORR?: number[];
+      ALLSKY_SFC_SW_DWN?: Record<string, number>;
+      ALLSKY_SFC_SW_DNI?: Record<string, number>;
+      ALLSKY_SFC_SW_DIFF?: Record<string, number>;
+      WS10M?: Record<string, number>;
+      WS10M_MAX?: Record<string, number>;
+      RH2M?: Record<string, number>;
+      T2M?: Record<string, number>;
+      T2M_MAX?: Record<string, number>;
+      T2M_MIN?: Record<string, number>;
+      PRECTOTCORR?: Record<string, number>;
     };
   };
 }
