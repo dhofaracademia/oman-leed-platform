@@ -8,115 +8,184 @@ export interface ChatMessage {
   timestamp: Date;
 }
 
-const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
+const API_URL = 'https://api.anthropic.com/v1/messages';
 const MODEL = 'claude-sonnet-4-20250514';
+const PROXY = 'https://corsproxy.io/?';
 
-async function callAnthropicAPI(apiKey: string, body: object): Promise<Response> {
-  const headers = {
+async function callAPI(apiKey: string, body: object): Promise<Response> {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'x-api-key': apiKey,
     'anthropic-version': '2023-06-01',
     'anthropic-dangerous-direct-browser-access': 'true',
   };
+  const bodyStr = JSON.stringify(body);
   try {
-    const res = await fetch(CLAUDE_API_URL, { method: 'POST', headers, body: JSON.stringify(body) });
+    const res = await fetch(API_URL, { method: 'POST', headers, body: bodyStr });
     if (res.status !== 0) return res;
-  } catch { /* fall through to proxy */ }
-  const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(CLAUDE_API_URL);
-  return fetch(proxyUrl, { method: 'POST', headers, body: JSON.stringify(body) });
+  } catch (_e) { /* fall to proxy */ }
+  return fetch(PROXY + encodeURIComponent(API_URL), { method: 'POST', headers, body: bodyStr });
 }
 
-function buildContext(analysis: AnalysisResult): string {
-  return `
-LEED v4.1 Land Assessment — Oman
-Location: ${analysis.location.lat.toFixed(4)}°N, ${analysis.location.lng.toFixed(4)}°E
-Date: ${analysis.analysisDate}
-
-SCORES: Current ${analysis.landAssessment.currentScore} pts | Potential +${analysis.landAssessment.potentialScore} pts | Max ${analysis.landAssessment.maxPossibleScore} pts
-
-CATEGORIES:
-${analysis.landAssessment.categories.map(c => `  ${c.name}: ${c.currentPoints}/${c.possiblePoints}/${c.maxPoints}`).join('\n')}
-
-SOLAR: GHI ${analysis.solar.ghi} kWh/m²/day | Yearly ${analysis.solar.yearlyGHI} kWh/m² | PV ${analysis.solar.pvProductionPotential} kWh/kWp/yr | Tilt ${analysis.solar.optimalTilt}° | Dust ${analysis.solar.dustImpactValue}%
-WIND: ${analysis.wind.averageSpeed} m/s avg | ${analysis.wind.energyDensity} W/m² | ${analysis.wind.turbineSuitability} suitability
-CLIMATE: ${analysis.climate.climateZone} | ${analysis.climate.avgTemperature}°C avg | ${analysis.climate.rainfall}mm rain | ${analysis.climate.relativeHumidity}% humidity
-SOIL: ${analysis.soil.type} | ${analysis.soil.texture} | pH ${analysis.soil.phLevel} | ${analysis.soil.bearingCapacity} kPa | ${analysis.soil.drainage} drainage
-`.trim();
+function buildContext(a: AnalysisResult): string {
+  const cats = a.landAssessment.categories
+    .map(function(c) { return '  ' + c.name + ': ' + c.currentPoints + '/' + c.possiblePoints + '/' + c.maxPoints; })
+    .join('\n');
+  const recs = a.obcRecommendations.slice(0, 4)
+    .map(function(r) { return '  [' + r.priority + '] ' + r.title + ': +' + r.potentialScoreIncrease + ' pts'; })
+    .join('\n');
+  return [
+    'LEED v4.1 Land Assessment - Oman',
+    'Location: ' + a.location.lat.toFixed(4) + 'N, ' + a.location.lng.toFixed(4) + 'E',
+    'Date: ' + a.analysisDate,
+    '',
+    'SCORES: Current ' + a.landAssessment.currentScore + ' | Potential +' + a.landAssessment.potentialScore + ' | Max ' + a.landAssessment.maxPossibleScore,
+    '',
+    'CATEGORIES:',
+    cats,
+    '',
+    'SOLAR: GHI ' + a.solar.ghi + ' kWh/m2/day | Yearly ' + a.solar.yearlyGHI + ' | PV ' + a.solar.pvProductionPotential + ' kWh/kWp/yr | Tilt ' + a.solar.optimalTilt + 'deg | Dust ' + a.solar.dustImpactValue + '%',
+    'WIND: ' + a.wind.averageSpeed + ' m/s | ' + a.wind.energyDensity + ' W/m2 | ' + a.wind.turbineSuitability,
+    'CLIMATE: ' + a.climate.climateZone + ' | ' + a.climate.avgTemperature + 'C avg | ' + a.climate.rainfall + 'mm rain',
+    'SOIL: ' + a.soil.type + ' | pH ' + a.soil.phLevel + ' | ' + a.soil.bearingCapacity + ' kPa | ' + a.soil.drainage,
+    '',
+    'RECOMMENDATIONS:',
+    recs,
+  ].join('\n');
 }
 
-function buildSystem(analysis: AnalysisResult): string {
-  return `You are an expert LEED v4.1 sustainability consultant for Oman and GCC. Respond in the SAME LANGUAGE as the user (Arabic if Arabic, English if English). Be specific — use actual numbers from the data.\n\nDATA:\n${buildContext(analysis)}`;
+function buildSystem(a: AnalysisResult): string {
+  return 'You are an expert LEED v4.1 sustainability consultant for Oman and GCC.\n' +
+    'Respond in the SAME LANGUAGE as the user (Arabic if Arabic, English if English).\n' +
+    'Be specific - use actual numbers from the data.\n\n' +
+    'DATA:\n' + buildContext(a);
 }
 
 export function useClaudeAI() {
-  const [messages, setMessages]   = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError]         = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const apiKeyRef = useRef<string>(
-    (() => { try { return (import.meta as unknown as { env: Record<string, string> }).env?.VITE_ANTHROPIC_API_KEY || ''; } catch { return ''; } })()
+    (function() {
+      try {
+        const meta = import.meta as unknown as { env: Record<string, string> };
+        return meta.env && meta.env.VITE_ANTHROPIC_API_KEY ? meta.env.VITE_ANTHROPIC_API_KEY : '';
+      } catch (_e) { return ''; }
+    })()
   );
 
-  const setApiKey = useCallback((key: string) => { apiKeyRef.current = key.trim(); }, []);
-  const hasApiKey = useCallback(() => Boolean(apiKeyRef.current?.trim()), []);
+  const setApiKey = useCallback(function(key: string) { apiKeyRef.current = key.trim(); }, []);
+  const hasApiKey = useCallback(function() { return Boolean(apiKeyRef.current && apiKeyRef.current.trim()); }, []);
 
-  const callClaude = useCallback(async (userMessage: string, analysis: AnalysisResult, history: ChatMessage[]): Promise<string> => {
-    const apiKey = apiKeyRef.current?.trim();
+  const callClaude = useCallback(async function(
+    userMessage: string,
+    analysis: AnalysisResult,
+    history: ChatMessage[]
+  ): Promise<string> {
+    const apiKey = apiKeyRef.current ? apiKeyRef.current.trim() : '';
     if (!apiKey) throw new Error('API key not set');
-    const response = await callAnthropicAPI(apiKey, {
-      model: MODEL, max_tokens: 1500, system: buildSystem(analysis),
-      messages: [...history.slice(-10).map(m => ({ role: m.role, content: m.content })), { role: 'user' as const, content: userMessage }],
+
+    const msgs = history.slice(-10).map(function(m) {
+      return { role: m.role, content: m.content };
     });
+    msgs.push({ role: 'user', content: userMessage });
+
+    const response = await callAPI(apiKey, {
+      model: MODEL,
+      max_tokens: 1500,
+      system: buildSystem(analysis),
+      messages: msgs,
+    });
+
     if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      const msg = (err as { error?: { message?: string } })?.error?.message || '';
-      if (response.status === 401) throw new Error('Invalid API key — check Anthropic Console');
-      if (response.status === 403) throw new Error('API key lacks permission — ensure billing is active');
-      throw new Error(msg || `API error ${response.status}`);
+      const errData = await response.json().catch(function() { return {}; });
+      const errObj = errData as { error?: { message?: string } };
+      const msg = errObj && errObj.error && errObj.error.message ? errObj.error.message : '';
+      if (response.status === 401) throw new Error('Invalid API key - check Anthropic Console');
+      if (response.status === 403) throw new Error('API key lacks permission - ensure billing is active');
+      throw new Error(msg || 'API error ' + response.status);
     }
+
     const data = await response.json();
-    return data.content?.[0]?.text || '';
+    const content = data.content;
+    return content && content[0] && content[0].text ? content[0].text : '';
   }, []);
 
-  const sendMessage = useCallback(async (userContent: string, analysis: AnalysisResult) => {
+  const sendMessage = useCallback(async function(userContent: string, analysis: AnalysisResult) {
     setError(null);
-    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: 'user', content: userContent, timestamp: new Date() };
-    setMessages(prev => [...prev, userMsg]);
+    const userMsg: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: userContent,
+      timestamp: new Date(),
+    };
+    setMessages(function(prev) { return [...prev, userMsg]; });
     setIsLoading(true);
+
     try {
-      const reply = await callClaude(userContent, analysis, messages);
-      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'assistant', content: reply, timestamp: new Date() }]);
+      const currentMessages = messages;
+      const reply = await callClaude(userContent, analysis, currentMessages);
+      const assistantMsg: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: reply,
+        timestamp: new Date(),
+      };
+      setMessages(function(prev) { return [...prev, assistantMsg]; });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Request failed');
-    } finally { setIsLoading(false); }
+    } finally {
+      setIsLoading(false);
+    }
   }, [messages, callClaude]);
 
-  const generateArabicSummary = useCallback(async (analysis: AnalysisResult): Promise<string> => {
-    const apiKey = apiKeyRef.current?.trim();
+  const generateArabicSummary = useCallback(async function(analysis: AnalysisResult): Promise<string> {
+    const apiKey = apiKeyRef.current ? apiKeyRef.current.trim() : '';
     if (!apiKey) throw new Error('API key not set');
-    const response = await callAnthropicAPI(apiKey, {
-      model: MODEL, max_tokens: 2000,
-      system: `أنت خبير استشاري LEED v4.1 لسلطنة عُمان.\n${buildContext(analysis)}`,
-      messages: [{ role: 'user', content: 'اكتب ملخصاً تنفيذياً احترافياً شاملاً باللغة العربية يشمل: الموقع، درجة LEED والشهادة المتوقعة، الإمكانات البيئية، خصائص التربة، أبرز 5 توصيات مع تكاليفها، وخلاصة الجدوى. مناسب للمستثمرين والجهات الحكومية.' }],
+
+    const systemMsg = 'You are an expert LEED v4.1 consultant for Oman. Write professional Arabic reports.\n\nDATA:\n' + buildContext(analysis);
+    const userMsg = 'اكتب ملخصا تنفيذيا احترافيا شاملا باللغة العربية يشمل: الموقع، درجة LEED والشهادة المتوقعة، الامكانات البيئية، خصائص التربة، ابرز 5 توصيات مع تكاليفها، وخلاصة الجدوى. مناسب للمستثمرين والجهات الحكومية.';
+
+    const response = await callAPI(apiKey, {
+      model: MODEL,
+      max_tokens: 2000,
+      system: systemMsg,
+      messages: [{ role: 'user', content: userMsg }],
     });
-    if (!response.ok) throw new Error(`API error: ${response.status}`);
+
+    if (!response.ok) throw new Error('API error: ' + response.status);
     const data = await response.json();
-    return data.content?.[0]?.text || '';
+    const content = data.content;
+    return content && content[0] && content[0].text ? content[0].text : '';
   }, []);
 
-  const generateAIRecommendations = useCallback(async (analysis: AnalysisResult): Promise<string> => {
-    const apiKey = apiKeyRef.current?.trim();
+  const generateAIRecommendations = useCallback(async function(analysis: AnalysisResult): Promise<string> {
+    const apiKey = apiKeyRef.current ? apiKeyRef.current.trim() : '';
     if (!apiKey) throw new Error('API key not set');
-    const response = await callAnthropicAPI(apiKey, {
-      model: MODEL, max_tokens: 2000, system: buildSystem(analysis),
-      messages: [{ role: 'user', content: `Provide 6 prioritized recommendations to maximize this parcel's LEED score. For each: LEED credit name, current→achievable points, technical specs using actual data (tilt ${analysis.solar.optimalTilt}°, temp ${analysis.climate.avgTemperature}°C), OMR cost estimate, points-per-OMR ratio. Order by best ROI first.` }],
+
+    const userMsg = 'Provide 6 prioritized recommendations to maximize LEED score for this parcel. ' +
+      'For each: LEED credit name, current to achievable points, technical specs using actual data ' +
+      '(tilt ' + analysis.solar.optimalTilt + ' deg, temp ' + analysis.climate.avgTemperature + 'C), ' +
+      'OMR cost estimate, points-per-OMR ratio. Order by best ROI first.';
+
+    const response = await callAPI(apiKey, {
+      model: MODEL,
+      max_tokens: 2000,
+      system: buildSystem(analysis),
+      messages: [{ role: 'user', content: userMsg }],
     });
-    if (!response.ok) throw new Error(`API error: ${response.status}`);
+
+    if (!response.ok) throw new Error('API error: ' + response.status);
     const data = await response.json();
-    return data.content?.[0]?.text || '';
+    const content = data.content;
+    return content && content[0] && content[0].text ? content[0].text : '';
   }, []);
 
-  const clearChat = useCallback(() => { setMessages([]); setError(null); }, []);
+  const clearChat = useCallback(function() {
+    setMessages([]);
+    setError(null);
+  }, []);
 
   return { messages, isLoading, error, sendMessage, generateArabicSummary, generateAIRecommendations, clearChat, setApiKey, hasApiKey };
 }
