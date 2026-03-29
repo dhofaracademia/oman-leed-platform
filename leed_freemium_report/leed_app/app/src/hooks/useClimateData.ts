@@ -1,13 +1,6 @@
 import { useState, useCallback } from 'react';
 import axios from 'axios';
-import type {
-  Location,
-  SolarData,
-  WindData,
-  ClimateData,
-  SoilData,
-  NASAPowerResponse
-} from '@/types';
+import type { Location, SolarData, WindData, ClimateData, SoilData, NASAPowerResponse } from '@/types';
 
 const NASA_POWER_BASE  = 'https://power.larc.nasa.gov/api/temporal/daily/point';
 const PVGIS_BASE       = 'https://re.jrc.ec.europa.eu/api/v5_2';
@@ -56,7 +49,7 @@ const classifySoil = (sand: number, silt: number, clay: number): string => {
 const bearingCap = (type: string, clay: number) =>
   type.includes('Clay') ? (clay > 35 ? 180 : 220) : type.includes('Sand') ? 120 : 180;
 
-const drainage = (sand: number, clay: number): 'excellent' | 'good' | 'moderate' | 'poor' =>
+const drainageCalc = (sand: number, clay: number): 'excellent' | 'good' | 'moderate' | 'poor' =>
   clay > 35 ? 'poor' : clay > 20 ? 'moderate' : sand > 70 ? 'excellent' : 'good';
 
 const avgRec = (obj: Record<string, number>): number => {
@@ -68,21 +61,48 @@ export const useClimateData = () => {
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState<string | null>(null);
 
+  const fetchSolarNASA = useCallback(async (location: Location): Promise<SolarData> => {
+    try {
+      const end = new Date(), start = new Date();
+      start.setFullYear(end.getFullYear() - 1);
+      const fmt = (d: Date) => d.toISOString().slice(0, 10).replace(/-/g, '');
+      const r = await axios.get<NASAPowerResponse>(NASA_POWER_BASE, {
+        params: { parameters: 'ALLSKY_SFC_SW_DWN,ALLSKY_SFC_SW_DNI,ALLSKY_SFC_SW_DIFF', community: 'RE', longitude: location.lng, latitude: location.lat, start: fmt(start), end: fmt(end), format: 'JSON' },
+        timeout: 20000,
+      });
+      const p = r.data.properties.parameter;
+      const ghi = avgRec(p.ALLSKY_SFC_SW_DWN ?? {});
+      const dni = avgRec(p.ALLSKY_SFC_SW_DNI ?? {});
+      const dhi = avgRec(p.ALLSKY_SFC_SW_DIFF ?? {});
+      const dust = getDustImpact(location.lat, location.lng);
+      return {
+        ghi: Number(ghi.toFixed(2)), dni: Number(dni.toFixed(2)), dhi: Number(dhi.toFixed(2)),
+        etr: Number((ghi * 1.3).toFixed(2)),
+        optimalTilt: calcTilt(location.lat), optimalAzimuth: calcAzimuth(location.lat, location.lng),
+        yearlyGHI: Number((ghi * 365).toFixed(0)),
+        pvProductionPotential: Number((ghi * 365 * 0.18 * (1 - dust.value / 100) * 0.92).toFixed(0)),
+        dustImpact: dust.level, dustImpactValue: dust.value,
+        dataSource: 'NASA POWER (fallback) — ±12% accuracy',
+      };
+    } catch {
+      const dust = getDustImpact(location.lat, location.lng);
+      return { ghi: 5.8, dni: 6.2, dhi: 1.8, etr: 8.5, optimalTilt: 23, optimalAzimuth: 0, yearlyGHI: 2117, pvProductionPotential: 1650, dustImpact: dust.level, dustImpactValue: dust.value, dataSource: 'Default fallback (Oman average)' };
+    }
+  }, []);
+
   const fetchSolarData = useCallback(async (location: Location): Promise<SolarData> => {
     try {
       const mrRes = await axios.get(pvgisUrl(`/MRcalc?lat=${location.lat}&lon=${location.lng}&outputformat=json&browser=0`), { timeout: 15000 });
       const monthly = mrRes.data?.outputs?.monthly;
       if (!monthly?.length) throw new Error('empty');
       const avgGHI = monthly.reduce((s: number, m: { H_sun: number }) => s + (m.H_sun || 0), 0) / monthly.length / 1000;
-
-      const pvRes    = await axios.get(pvgisUrl(`/PVcalc?lat=${location.lat}&lon=${location.lng}&peakpower=1&loss=14&optimalangles=1&outputformat=json&browser=0`), { timeout: 15000 });
-      const pvT      = pvRes.data?.outputs?.totals?.fixed;
-      const yearlyGHI      = pvT?.['H(i)_y'] ?? avgGHI * 365;
-      const pvProduction   = pvT?.E_y         ?? yearlyGHI * 0.16;
+      const pvRes = await axios.get(pvgisUrl(`/PVcalc?lat=${location.lat}&lon=${location.lng}&peakpower=1&loss=14&optimalangles=1&outputformat=json&browser=0`), { timeout: 15000 });
+      const pvT = pvRes.data?.outputs?.totals?.fixed;
+      const yearlyGHI    = pvT?.['H(i)_y'] ?? avgGHI * 365;
+      const pvProduction = pvT?.E_y         ?? yearlyGHI * 0.16;
       const optimalTilt    = pvRes.data?.inputs?.mounting_system?.fixed?.slope?.value   ?? calcTilt(location.lat);
       const optimalAzimuth = pvRes.data?.inputs?.mounting_system?.fixed?.azimuth?.value ?? calcAzimuth(location.lat, location.lng);
       const dust = getDustImpact(location.lat, location.lng);
-
       return {
         ghi: Number(avgGHI.toFixed(2)), dni: Number((avgGHI * 0.75).toFixed(2)),
         dhi: Number((avgGHI * 0.25).toFixed(2)), etr: Number((avgGHI * 1.3).toFixed(2)),
@@ -95,33 +115,7 @@ export const useClimateData = () => {
     } catch {
       return fetchSolarNASA(location);
     }
-  }, []);
-
-  const fetchSolarNASA = async (location: Location): Promise<SolarData> => {
-    try {
-      const end = new Date(), start = new Date();
-      start.setFullYear(end.getFullYear() - 1);
-      const fmt = (d: Date) => d.toISOString().slice(0, 10).replace(/-/g, '');
-      const r = await axios.get<NASAPowerResponse>(NASA_POWER_BASE, {
-        params: { parameters: 'ALLSKY_SFC_SW_DWN,ALLSKY_SFC_SW_DNI,ALLSKY_SFC_SW_DIFF', community: 'RE', longitude: location.lng, latitude: location.lat, start: fmt(start), end: fmt(end), format: 'JSON' },
-        timeout: 20000,
-      });
-      const p = r.data.properties.parameter;
-      const ghi = avgRec(p.ALLSKY_SFC_SW_DWN ?? {}), dni = avgRec(p.ALLSKY_SFC_SW_DNI ?? {}), dhi = avgRec(p.ALLSKY_SFC_SW_DIFF ?? {});
-      const dust = getDustImpact(location.lat, location.lng);
-      return {
-        ghi: Number(ghi.toFixed(2)), dni: Number(dni.toFixed(2)), dhi: Number(dhi.toFixed(2)), etr: Number((ghi * 1.3).toFixed(2)),
-        optimalTilt: calcTilt(location.lat), optimalAzimuth: calcAzimuth(location.lat, location.lng),
-        yearlyGHI: Number((ghi * 365).toFixed(0)),
-        pvProductionPotential: Number((ghi * 365 * 0.18 * (1 - dust.value / 100) * 0.92).toFixed(0)),
-        dustImpact: dust.level, dustImpactValue: dust.value,
-        dataSource: 'NASA POWER (fallback) — ±12% accuracy',
-      };
-    } catch {
-      const dust = getDustImpact(location.lat, location.lng);
-      return { ghi: 5.8, dni: 6.2, dhi: 1.8, etr: 8.5, optimalTilt: 23, optimalAzimuth: 0, yearlyGHI: 2117, pvProductionPotential: 1650, dustImpact: dust.level, dustImpactValue: dust.value, dataSource: 'Default fallback (Oman average)' };
-    }
-  };
+  }, [fetchSolarNASA]);
 
   const fetchWindData = useCallback(async (location: Location): Promise<WindData> => {
     try {
@@ -132,7 +126,7 @@ export const useClimateData = () => {
         params: { parameters: 'WS10M,WS10M_MAX', community: 'RE', longitude: location.lng, latitude: location.lat, start: fmt(start), end: fmt(end), format: 'JSON' },
         timeout: 20000,
       });
-      const p = r.data.properties.parameter;
+      const p   = r.data.properties.parameter;
       const ws  = Object.values(p.WS10M     ?? {}).filter(v => v > 0);
       const wsm = Object.values(p.WS10M_MAX ?? {}).filter(v => v > 0);
       const avg = ws.reduce((a, b) => a + b, 0) / ws.length;
@@ -185,26 +179,26 @@ export const useClimateData = () => {
       const resp = r.data?.response?.[0] ?? {};
       const keys = Object.keys(resp);
       const g = (k: string, d: number) => { const f = keys.find(x => x.includes(k)); return f ? Number(resp[f] ?? d) : d; };
-
       const sand = g('sol_sand', 70), clay = g('sol_clay', 10), silt = g('sol_silt', 20);
-      const phR  = g('sol_ph', 82), ph = phR > 14 ? phR / 10 : phR;
-      const ocR  = g('sol_organic.carbon', 3), oc = ocR > 10 ? ocR / 10 : ocR;
+      const phR = g('sol_ph', 82), ph = phR > 14 ? phR / 10 : phR;
+      const ocR = g('sol_organic.carbon', 3), oc = ocR > 10 ? ocR / 10 : ocR;
       const type = classifySoil(sand, silt, clay);
-
       return {
         type, texture: `${Math.round(sand)}% Sand, ${Math.round(silt)}% Silt, ${Math.round(clay)}% Clay`,
-        bearingCapacity: bearingCap(type, clay), drainage: drainage(sand, clay),
+        bearingCapacity: bearingCap(type, clay), drainage: drainageCalc(sand, clay),
         phLevel: Number(ph.toFixed(1)), organicCarbon: Number(oc.toFixed(2)),
         clayContent: Math.round(clay), sandContent: Math.round(sand), siltContent: Math.round(silt),
         contaminationRisk: location.lat > 23.5 && location.lng > 57.5 ? 'moderate' : 'low',
         depth: 5, dataSource: 'OpenLandMap v0.2 (250m) — ±15% accuracy',
       };
     } catch {
-      const d = location.lat < 19.5, m = location.lat > 22.5 && location.lat < 23.5 && location.lng > 57 && location.lng < 58.5, c = location.lng > 57.5 && location.lat > 22;
-      if (d) return { type: 'Silty Loam (Fluvisols)',       texture: '40% Sand, 40% Silt, 20% Clay', bearingCapacity: 160, drainage: 'good',      phLevel: 7.2, organicCarbon: 1.2, clayContent: 20, sandContent: 40, siltContent: 40, contaminationRisk: 'low',      depth: 5, dataSource: 'Oman calibration (Dhofar)' };
+      const d = location.lat < 19.5;
+      const m = location.lat > 22.5 && location.lat < 23.5 && location.lng > 57 && location.lng < 58.5;
+      const c = location.lng > 57.5 && location.lat > 22;
+      if (d) return { type: 'Silty Loam (Fluvisols)',      texture: '40% Sand, 40% Silt, 20% Clay', bearingCapacity: 160, drainage: 'good',      phLevel: 7.2, organicCarbon: 1.2, clayContent: 20, sandContent: 40, siltContent: 40, contaminationRisk: 'low',      depth: 5, dataSource: 'Oman calibration (Dhofar)' };
       if (m) return { type: 'Sandy Clay Loam (Cambisols)', texture: '50% Sand, 25% Silt, 25% Clay', bearingCapacity: 200, drainage: 'good',      phLevel: 7.8, organicCarbon: 0.6, clayContent: 25, sandContent: 50, siltContent: 25, contaminationRisk: 'low',      depth: 5, dataSource: 'Oman calibration (Al Hajar)' };
-      if (c) return { type: 'Desert Sand (Yermosols)',      texture: '70% Sand, 20% Silt, 10% Clay', bearingCapacity: 130, drainage: 'excellent', phLevel: 8.0, organicCarbon: 0.4, clayContent: 10, sandContent: 70, siltContent: 20, contaminationRisk: 'moderate', depth: 5, dataSource: 'Oman calibration (Coastal)' };
-      return           { type: 'Desert Sand (Yermosols)',   texture: '75% Sand, 15% Silt, 10% Clay', bearingCapacity: 120, drainage: 'excellent', phLevel: 8.2, organicCarbon: 0.3, clayContent: 10, sandContent: 75, siltContent: 15, contaminationRisk: 'low',      depth: 5, dataSource: 'Oman calibration (Interior)' };
+      if (c) return { type: 'Desert Sand (Yermosols)',     texture: '70% Sand, 20% Silt, 10% Clay', bearingCapacity: 130, drainage: 'excellent', phLevel: 8.0, organicCarbon: 0.4, clayContent: 10, sandContent: 70, siltContent: 20, contaminationRisk: 'moderate', depth: 5, dataSource: 'Oman calibration (Coastal)' };
+      return           { type: 'Desert Sand (Yermosols)',  texture: '75% Sand, 15% Silt, 10% Clay', bearingCapacity: 120, drainage: 'excellent', phLevel: 8.2, organicCarbon: 0.3, clayContent: 10, sandContent: 75, siltContent: 15, contaminationRisk: 'low',      depth: 5, dataSource: 'Oman calibration (Interior)' };
     }
   }, []);
 
@@ -219,3 +213,4 @@ export const useClimateData = () => {
 
   return { loading, error, fetchSolarData, fetchWindData, fetchClimateData, fetchSoilData, fetchAllData };
 };
+```
