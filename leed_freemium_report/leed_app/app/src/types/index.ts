@@ -7,10 +7,10 @@ export interface Location {
 
 // NASA POWER / PVGIS API Data Types
 export interface SolarData {
-  ghi: number; // Global Horizontal Irradiance (kWh/m²/day)
-  dni: number; // Direct Normal Irradiance (kWh/m²/day)
-  dhi: number; // Diffuse Horizontal Irradiance (kWh/m²/day)
-  etr: number; // Extraterrestrial Radiation
+  ghi: number;
+  dni: number;
+  dhi: number;
+  etr: number;
   optimalTilt: number;
   optimalAzimuth: number;
   yearlyGHI: number;
@@ -21,8 +21,8 @@ export interface SolarData {
 }
 
 export interface WindData {
-  averageSpeed: number; // m/s
-  energyDensity: number; // W/m²
+  averageSpeed: number;
+  energyDensity: number;
   prevailingDirection: string;
   maxSpeed: number;
   turbineSuitability: 'excellent' | 'good' | 'moderate' | 'poor';
@@ -30,11 +30,11 @@ export interface WindData {
 }
 
 export interface ClimateData {
-  relativeHumidity: number; // %
-  avgTemperature: number; // °C
+  relativeHumidity: number;
+  avgTemperature: number;
   maxTemperature: number;
   minTemperature: number;
-  rainfall: number; // mm/year
+  rainfall: number;
   climateZone: string;
   sunshineHours: number;
 }
@@ -43,19 +43,18 @@ export interface ClimateData {
 export interface SoilData {
   type: string;
   texture: string;
-  bearingCapacity: number; // kPa
+  bearingCapacity: number;
   drainage: 'excellent' | 'good' | 'moderate' | 'poor';
   phLevel: number;
-  organicCarbon: number; // %
-  clayContent: number; // %
-  sandContent: number; // %
-  siltContent: number; // %
+  organicCarbon: number;
+  clayContent: number;
+  sandContent: number;
+  siltContent: number;
   contaminationRisk: 'low' | 'moderate' | 'high';
   depth: number;
   dataSource?: string;
 }
 
-// LEED Assessment Types - Current Land Status Only
 export interface LEEDCategory {
   name: string;
   maxPoints: number;
@@ -72,7 +71,6 @@ export interface LandAssessment {
   categories: LEEDCategory[];
 }
 
-// Oman Building Code Recommendations
 export interface OBCRecommendation {
   id: string;
   category: string;
@@ -87,7 +85,6 @@ export interface OBCRecommendation {
   implementationPhase: 'Design' | 'Construction' | 'Design & Construction';
 }
 
-// Future Improvement Types
 export interface FutureImprovement {
   id: string;
   title: string;
@@ -101,7 +98,6 @@ export interface FutureImprovement {
   implementationPhase: 'Design' | 'Construction' | 'Design & Construction';
 }
 
-// Analysis Result Types
 export interface AnalysisResult {
   location: Location;
   solar: SolarData;
@@ -114,7 +110,6 @@ export interface AnalysisResult {
   analysisDate: string;
 }
 
-// UI Types
 export interface FeatureCard {
   icon: string;
   title: string;
@@ -127,7 +122,6 @@ export interface StatItem {
   unit?: string;
 }
 
-// API Response Types
 export interface NASAPowerResponse {
   properties: {
     parameter: {
@@ -151,9 +145,16 @@ export interface SoilGridsResponse {
       name: string;
       depth: string;
       unit: string;
-      values: {
-        mean: number;
-      };
+      values: { mean: number };
     }>;
   };
 }
+```
+
+**Commit changes** ✅
+
+---
+
+### الملف الثاني — اضغط هذا الرابط:
+```
+github.com/dhofaracademia/oman-leed-platform/edit/main/leed_freemium_report/leed_app/app/src/hooks/useClimateData.ts
