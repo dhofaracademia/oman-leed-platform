@@ -5,7 +5,6 @@ export interface Location {
   address?: string;
 }
 
-// NASA POWER / PVGIS API Data Types
 export interface SolarData {
   ghi: number;
   dni: number;
@@ -39,7 +38,6 @@ export interface ClimateData {
   sunshineHours: number;
 }
 
-// OpenLandMap / SoilGrids API Data Types
 export interface SoilData {
   type: string;
   texture: string;
@@ -149,12 +147,3 @@ export interface SoilGridsResponse {
     }>;
   };
 }
-```
-
-**Commit changes** ✅
-
----
-
-### الملف الثاني — اضغط هذا الرابط:
-```
-github.com/dhofaracademia/oman-leed-platform/edit/main/leed_freemium_report/leed_app/app/src/hooks/useClimateData.ts
