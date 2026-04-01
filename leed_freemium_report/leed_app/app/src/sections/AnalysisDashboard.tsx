@@ -759,16 +759,31 @@ export function AnalysisDashboard() {
   const handleAnalyze = async () => {
     try {
       const climateData = await fetchAllData(location);
-      const landAssessment = calculateAssessment(location, climateData.solar, climateData.wind, climateData.climate, climateData.soil);
-      const obcRecommendations = generateOBCRecommendations(location, climateData.solar, climateData.wind, climateData.climate, climateData.soil);
-      const futureImprovements = generateFutureImprovements(climateData.solar, climateData.wind, climateData.climate, climateData.soil);
+      const inp = {
+        location: location,
+        solar: climateData.solar,
+        wind: climateData.wind,
+        climate: climateData.climate,
+        rainfall: climateData.rainfall,
+        soil: climateData.soil,
+        seismic: climateData.seismic,
+      };
+      const landAssessment = calculateAssessment(inp);
+      const obcRecommendations = generateOBCRecommendations(inp, landAssessment.categoryDetails);
+      const futureImprovements = generateFutureImprovements(inp);
 
       const result: AnalysisResult = {
         location,
-        ...climateData,
+        solar: climateData.solar,
+        wind: climateData.wind,
+        climate: climateData.climate,
+        rainfall: climateData.rainfall,
+        soil: climateData.soil,
+        seismic: climateData.seismic,
         landAssessment,
         obcRecommendations,
         futureImprovements,
+        benchmarks: landAssessment.benchmarks,
         analysisDate: new Date().toISOString(),
       };
 
