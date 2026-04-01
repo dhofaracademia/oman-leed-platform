@@ -1,4 +1,3 @@
-// Location Types
 export interface Location {
   lat: number;
   lng: number;
@@ -16,16 +15,55 @@ export interface SolarData {
   pvProductionPotential: number;
   dustImpact: 'low' | 'moderate' | 'high';
   dustImpactValue: number;
+  facadeHeatGain: { north: number; south: number; east: number; west: number };
+  recommendedWWR: { north: number; south: number; east: number; west: number };
   dataSource?: string;
+}
+
+export interface WindDirectionBin {
+  direction: string;
+  angle: number;
+  frequency: number;
 }
 
 export interface WindData {
   averageSpeed: number;
+  maxSpeed: number;
   energyDensity: number;
   prevailingDirection: string;
-  maxSpeed: number;
-  turbineSuitability: 'excellent' | 'good' | 'moderate' | 'poor';
+  prevailingAngle: number;
+  windRose: WindDirectionBin[];
   annualHours: number;
+  turbineSuitability: 'excellent' | 'good' | 'moderate' | 'poor';
+  ventilationScore: number;
+  crossVentilationAngle: number;
+  windDrivenRainRisk: 'low' | 'moderate' | 'high';
+  seasonalWind: {
+    shamal: { direction: string; avgSpeed: number; months: string };
+    kharif: { direction: string; avgSpeed: number; months: string };
+  };
+  dataSource?: string;
+}
+
+export interface MonthlyTemp {
+  month: string;
+  avg: number;
+  max: number;
+  min: number;
+}
+
+export interface ComfortHours {
+  month: string;
+  hours: number;
+  percentage: number;
+}
+
+export interface Psychrometric {
+  month: string;
+  dryBulb: number;
+  relativeHumidity: number;
+  dewPoint: number;
+  wetBulb: number;
 }
 
 export interface ClimateData {
@@ -36,12 +74,34 @@ export interface ClimateData {
   rainfall: number;
   climateZone: string;
   sunshineHours: number;
+  cdd: number;
+  hdd: number;
+  overheatingHours: number;
+  comfortHours: ComfortHours[];
+  monthlyTemperature: MonthlyTemp[];
+  psychrometric: Psychrometric[];
+  condensationRisk: { month: string; risk: 'low' | 'moderate' | 'high' }[];
+  recommendedUValues: { wall: number; roof: number; floor: number; glazing: number };
+  dataSource?: string;
+}
+
+export interface RainfallData {
+  monthly: { month: string; precipitation: number }[];
+  annualTotal: number;
+  cycloneSeasonRisk: boolean;
+  cycloneRiskLevel: 'low' | 'moderate' | 'high';
+  wadiFloodRisk: 'low' | 'moderate' | 'high';
+  drainageGradient: number;
+  elevation: number;
+  rainwaterHarvestingPotential: number;
+  stormDrainageRequirement: string;
 }
 
 export interface SoilData {
   type: string;
   texture: string;
   bearingCapacity: number;
+  bearingRange: { min: number; max: number };
   drainage: 'excellent' | 'good' | 'moderate' | 'poor';
   phLevel: number;
   organicCarbon: number;
@@ -49,7 +109,23 @@ export interface SoilData {
   sandContent: number;
   siltContent: number;
   contaminationRisk: 'low' | 'moderate' | 'high';
+  sabkhaRisk: boolean;
+  expansiveClayRisk: boolean;
+  corrosionRisk: 'low' | 'moderate' | 'high';
+  recommendedFoundation: 'strip' | 'raft' | 'piles';
+  waterproofingRequired: boolean;
   depth: number;
+  dataSource?: string;
+}
+
+export interface SeismicData {
+  pga: number;
+  zone: string;
+  zoneNumber: number;
+  historicalEvents: number;
+  maxMagnitude: number;
+  structuralRecommendation: string;
+  diaphragmContinuity: boolean;
   dataSource?: string;
 }
 
@@ -69,6 +145,14 @@ export interface LandAssessment {
   categories: LEEDCategory[];
 }
 
+export interface BenchmarkData {
+  region: string;
+  solarPotential: number;
+  coolingLoad: number;
+  floodRisk: number;
+  ventilationScore: number;
+}
+
 export interface OBCRecommendation {
   id: string;
   category: string;
@@ -78,6 +162,7 @@ export interface OBCRecommendation {
   priority: 'high' | 'medium' | 'low';
   obcReference: string;
   leedReference: string;
+  oeescReference?: string;
   potentialScoreIncrease: number;
   implementationCost: 'low' | 'medium' | 'high';
   implementationPhase: 'Design' | 'Construction' | 'Design & Construction';
@@ -101,10 +186,13 @@ export interface AnalysisResult {
   solar: SolarData;
   wind: WindData;
   climate: ClimateData;
+  rainfall: RainfallData;
   soil: SoilData;
+  seismic: SeismicData;
   landAssessment: LandAssessment;
   obcRecommendations: OBCRecommendation[];
   futureImprovements: FutureImprovement[];
+  benchmarks: BenchmarkData[];
   analysisDate: string;
 }
 
@@ -136,15 +224,3 @@ export interface NASAPowerResponse {
     };
   };
 }
-
-export interface SoilGridsResponse {
-  properties: {
-    layers: Array<{
-      name: string;
-      depth: string;
-      unit: string;
-      values: { mean: number };
-    }>;
-  };
-}
-```
