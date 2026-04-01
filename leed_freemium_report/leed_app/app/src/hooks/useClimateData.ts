@@ -283,7 +283,7 @@ export const useClimateData = function() {
       const avgHumidity = psychrometric.reduce(function(s, p) { return s + p.relativeHumidity; }, 0) / 12;
 
       const precipitation = era5.daily.precipitation_sum || [];
-      const annualRain    = precipitation.filter(function(v) { return v != null && v >= 0; }).reduce(function(a, b) { return a + (b || 0); }, 0);
+      const annualRain: number = precipitation.filter(function(v): v is number { return v != null && v >= 0; }).reduce(function(a: number, b: number) { return a + b; }, 0);
       const isCoastal     = (location.lng >= 58.5) || (location.lat >= 23.0 && location.lng >= 57.0) || location.lat < 19.5;
 
       const uvals = getUValues(Math.round(cdd), isCoastal);
