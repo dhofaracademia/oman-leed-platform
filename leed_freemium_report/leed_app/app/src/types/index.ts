@@ -1,9 +1,11 @@
+// ─── Location ────────────────────────────────────────────────────────────────
 export interface Location {
   lat: number;
   lng: number;
   address?: string;
 }
 
+// ─── Solar (PVGIS v5.2) ──────────────────────────────────────────────────────
 export interface SolarData {
   ghi: number;
   dni: number;
@@ -20,6 +22,7 @@ export interface SolarData {
   dataSource?: string;
 }
 
+// ─── Wind (ERA5 via Open-Meteo) ───────────────────────────────────────────────
 export interface WindDirectionBin {
   direction: string;
   angle: number;
@@ -45,6 +48,7 @@ export interface WindData {
   dataSource?: string;
 }
 
+// ─── Climate (ERA5 via Open-Meteo) ────────────────────────────────────────────
 export interface MonthlyTemp {
   month: string;
   avg: number;
@@ -85,6 +89,7 @@ export interface ClimateData {
   dataSource?: string;
 }
 
+// ─── Rainfall (ERA5 via Open-Meteo) ──────────────────────────────────────────
 export interface RainfallData {
   monthly: { month: string; precipitation: number }[];
   annualTotal: number;
@@ -97,6 +102,7 @@ export interface RainfallData {
   stormDrainageRequirement: string;
 }
 
+// ─── Soil (OpenLandMap + Oman zones fallback) ─────────────────────────────────
 export interface SoilData {
   type: string;
   texture: string;
@@ -118,6 +124,7 @@ export interface SoilData {
   dataSource?: string;
 }
 
+// ─── Seismic (USGS) ──────────────────────────────────────────────────────────
 export interface SeismicData {
   pga: number;
   zone: string;
@@ -129,6 +136,7 @@ export interface SeismicData {
   dataSource?: string;
 }
 
+// ─── LEED ────────────────────────────────────────────────────────────────────
 export interface LEEDCategory {
   name: string;
   maxPoints: number;
@@ -145,6 +153,7 @@ export interface LandAssessment {
   categories: LEEDCategory[];
 }
 
+// ─── Regional Benchmarks ─────────────────────────────────────────────────────
 export interface BenchmarkData {
   region: string;
   solarPotential: number;
@@ -153,6 +162,7 @@ export interface BenchmarkData {
   ventilationScore: number;
 }
 
+// ─── OBC / OEESC ─────────────────────────────────────────────────────────────
 export interface OBCRecommendation {
   id: string;
   category: string;
@@ -181,6 +191,7 @@ export interface FutureImprovement {
   implementationPhase: 'Design' | 'Construction' | 'Design & Construction';
 }
 
+// ─── Full Analysis Result ─────────────────────────────────────────────────────
 export interface AnalysisResult {
   location: Location;
   solar: SolarData;
@@ -196,6 +207,7 @@ export interface AnalysisResult {
   analysisDate: string;
 }
 
+// ─── UI Types ─────────────────────────────────────────────────────────────────
 export interface FeatureCard {
   icon: string;
   title: string;
@@ -208,6 +220,7 @@ export interface StatItem {
   unit?: string;
 }
 
+// ─── API Response Types ───────────────────────────────────────────────────────
 export interface NASAPowerResponse {
   properties: {
     parameter: {
